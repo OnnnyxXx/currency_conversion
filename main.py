@@ -1,16 +1,33 @@
-from fastapi import FastAPI, Request, Form
-from starlette.responses import HTMLResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
 import requests
-from config.currency_api import curr_api
-from src.currency.conversion import router as conversion_router
+from fastapi import FastAPI, Request, Form, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
+from starlette.responses import HTMLResponse
+
+from config.currency_api import curr_api
+from database import Base, engine
+from src.auth.base_config import fastapi_users, auth_backend, current_user
+from src.auth.models import User
+from src.auth.schemas import UserRead, UserCreate
+from src.currency.conversion import router as conversion_router
 
 templates = Jinja2Templates(directory="templates")
 
 app = FastAPI(
     title='Currency Conversion',
 
+)
+
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/auth",
+    tags=["Auth"],
+)
+
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/auth",
+    tags=["Auth"],
 )
 
 app.include_router(conversion_router)
@@ -28,8 +45,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS", "DELETE", "PATCH", "PUT"],
+    allow_headers=["Content-Type", "Set-Cookie", "Access-Control-Allow-Headers", "Access-Control-Allow-Origin",
+                   "Authorization"],
 )
 
 
@@ -68,3 +86,14 @@ async def currency_conversion(request: Request, from_: str = Form(...), to: str 
         return templates.TemplateResponse("index.html", {"request": request, "result": result, "status": status_code})
     except Exception as error:
         return templates.TemplateResponse("index.html", {"request": request, "error": str(error)})
+
+
+@app.get('/protected-user')
+def protected_user(user: User = Depends(current_user)):
+    return f"Hello {user.username} or email {user.email}"
+
+
+@app.on_event("startup")
+async def on_startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)

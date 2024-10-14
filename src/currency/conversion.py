@@ -15,6 +15,9 @@ router = APIRouter(
 @router.post('/api/v1/currency/')
 async def currency_conversion(request: Request, currency: CurrencyParameter):
     """
+    This is an API for you, send json with parameters and get data with currency
+
+
     :param request:
         Well, it's all clear anyway
 
